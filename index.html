@@ -21,7 +21,7 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);font-family:
 #stage{position:fixed;inset:0}
 #stage.shake{animation:shk .25s}
 @keyframes shk{20%{transform:translate(-6px,3px)}40%{transform:translate(5px,-4px)}60%{transform:translate(-4px,-2px)}80%{transform:translate(3px,4px)}}
-#tv{position:fixed;top:calc(env(safe-area-inset-top,0px) + 10px);left:50%;transform:translateX(-50%);background:var(--tv);border-radius:14px;padding:8px 8px 14px;box-shadow:0 6px 0 #120905;z-index:5}
+#tv{position:fixed;top:calc(env(safe-area-inset-top,0px) + 10px);left:50%;transform:translateX(-50%);background:var(--tv);border-radius:14px;padding:8px 8px 14px;box-shadow:0 6px 0 #120905;z-index:9}
 #tv:after{content:"";position:absolute;left:50%;bottom:4px;width:30px;height:5px;margin-left:-15px;border-radius:3px;background:#5a3a22}
 #ytwrap{width:240px;height:200px;border-radius:6px;overflow:hidden;background:#000}
 #hud{position:fixed;left:0;right:0;top:calc(env(safe-area-inset-top,0px) + 232px);text-align:center;z-index:4;pointer-events:none}
@@ -41,7 +41,7 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);font-family:
 #judge.show{animation:jd .9s ease-out}
 @keyframes jd{0%{opacity:1;transform:translateY(10px)}20%{transform:translateY(0)}75%{opacity:1}100%{opacity:0;transform:translateY(-14px)}}
 #btn[disabled]{filter:grayscale(.8) brightness(.6)}
-#quit{position:fixed;right:calc(env(safe-area-inset-right,0px) + 10px);top:calc(env(safe-area-inset-top,0px) + 10px);z-index:8;padding:10px 14px;border-radius:12px;border:none;background:#4a2c1aee;color:var(--fg);font-weight:800;font-size:15px;font-family:inherit}
+#quit{position:fixed;right:calc(env(safe-area-inset-right,0px) + 12px);bottom:calc(env(safe-area-inset-bottom,0px) + 30px);z-index:8;width:78px;padding:9px 6px;border-radius:14px;border:none;background:#4a2c1aee;color:var(--fg);font-weight:800;font-size:12px;line-height:1.25;font-family:inherit}
 .panel{position:fixed;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;background:#1b0f0acc;padding:16px}
 .card{background:#2a1810;border:3px solid var(--accent);border-radius:18px;padding:20px;max-width:380px;width:100%;text-align:center;max-height:100%;overflow:auto}
 .card h1{margin:0 0 6px;font-size:38px;color:var(--accent);letter-spacing:.05em}
@@ -81,7 +81,7 @@ table.rank tr.me td{background:#4a2c1a}
 <div id="hud"><div id="count">0</div><div id="countLabel">テキーラ成功</div><div id="time">0:00</div><div id="combo"></div><div id="msg">読み込み中…</div></div>
 <div id="pop">テキーラ！</div>
 <button id="btn" disabled>テキーラ！</button>
-<button id="quit" hidden>我慢できなくなった</button>
+<button id="quit" hidden>我慢でき<br>なくなった</button>
 <div id="judge"></div>
 <button id="emoBtn">エモート</button>
 <div id="emoGrid" hidden></div>
@@ -144,25 +144,42 @@ let CFG={hits:[H1,H2],loopFrom:LOOP_FROM,loopTo:LOOP_FROM+LOOP_LEN};
 const FADE=0.12;  // つなぎ目で音を小さく→大きくする秒数
 const EARLY=0.15; // 戻る操作を早めに出す秒数（読み込みで止まる分）
 const BEAT=LOOP_LEN/256; // ループは256拍 → 1拍の秒数（テンポ約173）
-// ===== つなぎ目のすき間をうめるマラカスとボンゴ =====
-let MC=null,maskedCycle=-1,cycle=0;
+// ===== 会場の音：歓声をずっと下に流し、曲が一瞬止まっても無音に聞こえないようにする =====
+let MC=null,crowd=null,maskedCycle=-1,cycle=0;
 function ac(){try{MC=MC||new (window.AudioContext||window.webkitAudioContext)();if(MC.state==='suspended')MC.resume();}catch(e){}return MC;}
-function shaker(at,gain){const c=MC,n=c.sampleRate*0.07|0,b=c.createBuffer(1,n,c.sampleRate),d=b.getChannelData(0);for(let i=0;i<n;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/n,3);
- const src=c.createBufferSource();src.buffer=b;const f=c.createBiquadFilter();f.type='highpass';f.frequency.value=5000;const g=c.createGain();g.gain.value=gain;src.connect(f).connect(g).connect(c.destination);src.start(at);}
-function bongo(at,freq,gain){const c=MC,o=c.createOscillator(),g=c.createGain();o.type='sine';o.frequency.setValueAtTime(freq*1.5,at);o.frequency.exponentialRampToValueAtTime(freq,at+.04);
- g.gain.setValueAtTime(.0001,at);g.gain.exponentialRampToValueAtTime(gain,at+.005);g.gain.exponentialRampToValueAtTime(.0001,at+.22);o.connect(g).connect(c.destination);o.start(at);o.stop(at+.25);}
-// 曲の時刻 a〜b（ループの終わりをまたぐ）をリズムどおりに埋める
-function maskFill(r){
+function noiseBuf(sec){const c=MC,n=c.sampleRate*sec|0,b=c.createBuffer(1,n,c.sampleRate),d=b.getChannelData(0);let p=0;for(let i=0;i<n;i++){p=p*.96+(Math.random()*2-1)*.2;d[i]=p*2.2+(Math.random()*2-1)*.15;}return b;}
+const CROWD_BASE=0.16;
+function startCrowd(){
+ const c=ac();if(!c||crowd)return;
+ const out=c.createGain();out.gain.value=0;out.connect(c.destination);
+ // 人の声っぽい帯域（あ・お・え）を3つ重ね、それぞれ別の速さでざわざわ揺らす
+ [[700,1.1,.29],[1150,1.4,.53],[2300,1.6,.87]].forEach(([f,q,lf],i)=>{
+  const src=c.createBufferSource();src.buffer=noiseBuf(3+i*0.7);src.loop=true;
+  const bp=c.createBiquadFilter();bp.type='bandpass';bp.frequency.value=f;bp.Q.value=q;
+  const am=c.createGain();am.gain.value=.6;
+  const l1=c.createOscillator(),g1=c.createGain();l1.frequency.value=lf;g1.gain.value=.25;l1.connect(g1).connect(am.gain);l1.start();
+  const l2=c.createOscillator(),g2=c.createGain();l2.frequency.value=lf*4.3;g2.gain.value=.12;l2.connect(g2).connect(am.gain);l2.start();
+  src.connect(bp).connect(am).connect(out);src.start();
+ });
+ crowd={out};
+}
+function crowdTo(v,tc){if(!crowd)return;const g=crowd.out.gain,t=MC.currentTime;g.cancelScheduledValues(t);g.setTargetAtTime(v,t,tc||.4);}
+function crowdSwell(peak,hold){if(!crowd)return;const g=crowd.out.gain,t=MC.currentTime;g.cancelScheduledValues(t);g.setValueAtTime(g.value,t);g.linearRampToValueAtTime(peak,t+.1);g.setValueAtTime(peak,t+.1+hold);g.linearRampToValueAtTime(CROWD_BASE,t+.1+hold+1.4);}
+// 「フゥー！」の口笛
+function whoo(at,gain){const c=MC,o=c.createOscillator(),g=c.createGain(),v=c.createOscillator(),vg=c.createGain();const f=1100+Math.random()*500;
+ o.type='sine';o.frequency.setValueAtTime(f*.8,at);o.frequency.linearRampToValueAtTime(f*1.25,at+.18);o.frequency.linearRampToValueAtTime(f*1.1,at+.5);
+ v.frequency.value=7;vg.gain.value=f*.02;v.connect(vg).connect(o.frequency);v.start(at);v.stop(at+.6);
+ g.gain.setValueAtTime(.0001,at);g.gain.exponentialRampToValueAtTime(gain,at+.05);g.gain.exponentialRampToValueAtTime(.0001,at+.55);o.connect(g).connect(c.destination);o.start(at);o.stop(at+.6);}
+// エアホーン（パッ パッ パァーー）
+function airhorn(at){const c=MC;const lp=c.createBiquadFilter();lp.type='lowpass';lp.frequency.value=2600;const out=c.createGain();out.gain.value=.5;lp.connect(out).connect(c.destination);
+ [[0,.11],[.15,.11],[.3,.55]].forEach(([d,l])=>{[415,418,622,830].forEach((f,i)=>{const o=c.createOscillator(),g=c.createGain();o.type='sawtooth';o.frequency.setValueAtTime(f*.97,at+d);o.frequency.linearRampToValueAtTime(f,at+d+.04);
+  const v=i<2?.09:.05;g.gain.setValueAtTime(.0001,at+d);g.gain.exponentialRampToValueAtTime(v,at+d+.015);g.gain.setValueAtTime(v,at+d+l-.03);g.gain.exponentialRampToValueAtTime(.0001,at+d+l);o.connect(g).connect(lp);o.start(at+d);o.stop(at+d+l+.02);});});}
+// つなぎ目：歓声をふくらませて、止まった一瞬を包む
+function seamHype(){
  const c=ac();if(!c)return;
- const a=CFG.loopTo-EARLY-0.45,b=CFG.loopTo+0.7,base=c.currentTime-r;
- const k0=Math.ceil((a-H1)/(BEAT/2)),k1=Math.floor((b-H1)/(BEAT/2));
- for(let k=k0;k<=k1;k++){
-  const st=H1+k*BEAT/2,at=base+st;if(at<c.currentTime)continue;
-  const edge=Math.min(1,Math.max(.25,1-Math.abs(st-(CFG.loopTo-EARLY))/0.8));
-  shaker(at,.22*edge);
-  if(k%2===0)bongo(at,(k/2)%2?330:220,.2*edge);
-  else if(Math.abs(st-(CFG.loopTo-EARLY))<.5)bongo(at+BEAT/4,280,.2);
- }
+ crowdSwell(.55,.55);
+ const t=c.currentTime;whoo(t+.05,.06);whoo(t+.25,.05);
+ window.stageFx&&stageFx.hype(.55);
 }
 const ls={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
 let best=ls.get('tequila_best2',{c:0,s:0});
@@ -217,7 +234,7 @@ const PANELS=['title','regPanel','over','rankPanel'];
 function show(id){PANELS.forEach(p=>$(p).hidden=(p!==id));}
 function fmt(s){s=Math.floor(s);const h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=s%60;return (h?h+':'+String(m).padStart(2,'0'):m)+':'+String(x).padStart(2,'0');}
 function showTitle(){
- setVol(100);mode='title';show('title');$('btn').disabled=true;$('quit').hidden=true;
+ setVol(100);crowdTo(0,.3);mode='title';show('title');$('btn').disabled=true;$('quit').hidden=true;
  $('best').textContent='さいこう記録：'+best.c+'回（'+fmt(best.s)+'）';
  const ok=CFG.hits.length>0;
  $('msg').textContent=ok?'':'準備中です。もう少し待ってね';
@@ -242,7 +259,7 @@ $('xBtn').onclick=()=>{
 let lastResult={c:0,s:0};
 
 function startGame(){
- ac();
+ ac();startCrowd();crowdTo(CROWD_BASE,.8);
  show(null);mode='play';count=0;combo=0;playSec=0;early=[];
  hitDone=CFG.hits.map(()=>false);
  $('count').textContent='0';$('time').textContent='0:00';$('combo').textContent='';
@@ -254,7 +271,7 @@ function startGame(){
 }
 function endGame(){
  if(mode!=='play')return;
- mode='over';$('btn').disabled=true;$('quit').hidden=true;glow(null);lastResult={c:count,s:Math.floor(playSec)};
+ mode='over';$('btn').disabled=true;$('quit').hidden=true;glow(null);crowdTo(0,.6);lastResult={c:count,s:Math.floor(playSec)};
  try{player.pauseVideo()}catch(e){}
  const nb=count>best.c||(count===best.c&&count>0&&playSec<best.s);
  if(nb){best={c:count,s:Math.floor(playSec)};ls.set('tequila_best2',best);}
@@ -356,9 +373,9 @@ function drawFx(){
  requestAnimationFrame(drawFx);
 }
 requestAnimationFrame(drawFx);
-let AC=null;
 function sfx(big){
- try{AC=AC||new (window.AudioContext||window.webkitAudioContext)();const t=AC.currentTime;
+ try{const AC=ac();const t=AC.currentTime;
+  if(big){airhorn(t);startCrowd();crowdSwell(.7,.9);whoo(t+.1,.07);whoo(t+.3,.06);whoo(t+.55,.05);}
   [0,.06,.12].slice(0,big?3:1).forEach((d,i)=>{const o=AC.createOscillator(),v=AC.createGain();o.type='triangle';o.frequency.value=[784,988,1319][i];v.gain.setValueAtTime(.0001,t+d);v.gain.exponentialRampToValueAtTime(.18,t+d+.01);v.gain.exponentialRampToValueAtTime(.0001,t+d+.25);o.connect(v).connect(AC.destination);o.start(t+d);o.stop(t+d+.3);});
  }catch(e){}
 }
@@ -372,6 +389,7 @@ function celebrate(big){
   const f=$('flash');f.classList.remove('on');void f.offsetWidth;f.classList.add('on');
   if(navigator.vibrate)try{navigator.vibrate(40)}catch(e){}
   window.dancer&&dancer.emote(null);
+  window.stageFx&&stageFx.hype(1);
  }
  sfx(big);
 }
@@ -427,13 +445,13 @@ const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'
 let lastTick=performance.now();
 function tick(){
  const p=performance.now(),dt=Math.min(1,(p-lastTick)/1000);lastTick=p;
- if(mode!=='play'||!ready)return;
+ if(mode!=='play'||!ready){window.songState={moving:false};return;}
  const r=raw();
  if(r!==lastRaw){lastRaw=r;lastRawAt=p;}
  const moving=playing&&p-lastRawAt<700; // 広告中や読み込み中は進んでいない
  const sinceSeek=p-lastSeekAt;
  // ループ：サビの終わりを過ぎたら頭へ。外へ出ていたら戻す
- if(moving&&maskedCycle!==cycle&&r>=CFG.loopTo-EARLY-0.5&&r<CFG.loopTo){maskedCycle=cycle;maskFill(r);}
+ if(moving&&maskedCycle!==cycle&&r>=CFG.loopTo-EARLY-0.35&&r<CFG.loopTo){maskedCycle=cycle;seamHype();}
  if(sinceSeek>900&&(r>=CFG.loopTo-EARLY||r<CFG.loopFrom-1.5)){
   if(r>=CFG.loopTo-EARLY||moving){cycle++;seekLoop();}
  }
@@ -443,6 +461,7 @@ function tick(){
   setVol(100*Math.max(0,Math.min(1,tail,head)));
  }
  const inLoop=r>=CFG.loopFrom-0.3&&r<CFG.loopTo+0.3;
+ window.songState={t:now(),moving:moving&&inLoop,at:p};
  if(moving&&inLoop){
   playSec+=dt;$('time').textContent=fmt(playSec);
   if($('msg').textContent==='サビが始まるのを待ってね')$('msg').textContent='';
@@ -476,36 +495,82 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
 const cv=document.getElementById('c');
 const R=new THREE.WebGLRenderer({canvas:cv,antialias:true});
 R.setPixelRatio(Math.min(devicePixelRatio,2));
-const S=new THREE.Scene();S.background=new THREE.Color(0x1b0f0a);
+const S=new THREE.Scene();S.background=new THREE.Color(0x12070a);S.fog=new THREE.Fog(0x12070a,9,20);
 const cam=new THREE.PerspectiveCamera(40,1,0.1,100);
-S.add(new THREE.HemisphereLight(0xfff0d0,0x3a2010,1.1));
-const dl=new THREE.DirectionalLight(0xffffff,1.4);dl.position.set(3,6,4);S.add(dl);
-const floor=new THREE.Mesh(new THREE.CircleGeometry(6,48),new THREE.MeshStandardMaterial({color:0x8a3b1e,roughness:.9}));
-floor.rotation.x=-Math.PI/2;S.add(floor);
+const hemi=new THREE.HemisphereLight(0xfff0d0,0x2a1020,.9);S.add(hemi);
+const dl=new THREE.DirectionalLight(0xffffff,1.3);dl.position.set(3,6,5);S.add(dl);
+const world=new THREE.Group();S.add(world);
+const BEAT_SEC=88.665/256,H1=52.76;
+const NEON=[0xff3d8b,0x2ee6ff,0xffe23d,0x7dff4f,0xff8a2e,0xb36bff];
+
+// ===== 光る床（タイル） =====
+const TX=13,TZ=9;
+const tiles=new THREE.InstancedMesh(new THREE.BoxGeometry(.94,.06,.94),new THREE.MeshBasicMaterial({color:0xffffff}),TX*TZ);
+{const m=new THREE.Matrix4();let i=0;for(let x=0;x<TX;x++)for(let z=0;z<TZ;z++){m.makeTranslation(x-(TX-1)/2,-.03,z-6.2);tiles.setMatrixAt(i,m);tiles.setColorAt(i,new THREE.Color(0x333333));i++;}}
+world.add(tiles);
 const ring=new THREE.Mesh(new THREE.RingGeometry(1.2,1.35,48),new THREE.MeshBasicMaterial({color:0xffcc33}));
-ring.rotation.x=-Math.PI/2;ring.position.y=.01;S.add(ring);
-const spot=new THREE.PointLight(0xff8844,6,8);spot.position.set(0,3.2,1.5);S.add(spot);
+ring.rotation.x=-Math.PI/2;ring.position.y=.02;world.add(ring);
 
-const M=new THREE.MeshStandardMaterial({color:0xf2ede4,roughness:.35,metalness:.05});
-const man=new THREE.Group();S.add(man);
-const root=new THREE.Group();man.add(root);
-const hip=new THREE.Group();root.add(hip);
-const torso=new THREE.Mesh(new THREE.CapsuleGeometry(.13,.55,8,16),M);torso.position.y=.38;hip.add(torso);
-const neck=new THREE.Group();neck.position.y=.75;hip.add(neck);
-const head=new THREE.Mesh(new THREE.SphereGeometry(.24,32,24),M);head.position.y=.2;neck.add(head);
-const hatM=new THREE.MeshStandardMaterial({color:0xe0a030,roughness:.7});
-const hat=new THREE.Group();neck.add(hat);
-const brim=new THREE.Mesh(new THREE.CylinderGeometry(.5,.5,.03,32),hatM);brim.position.y=.41;hat.add(brim);
-const crown=new THREE.Mesh(new THREE.ConeGeometry(.2,.3,24),hatM);crown.position.y=.57;hat.add(crown);
-function limb(len){const g=new THREE.Group();const m=new THREE.Mesh(new THREE.CapsuleGeometry(.065,len,6,12),M);m.position.y=-len/2;g.add(m);return g;}
-const armL=limb(.6),armR=limb(.6);armL.position.set(-.2,.68,0);armR.position.set(.2,.68,0);hip.add(armL,armR);
-const legL=limb(.8),legR=limb(.8);legL.position.set(-.1,0,0);legR.position.set(.1,0,0);hip.add(legL,legR);
-const mm=new THREE.MeshStandardMaterial({color:0xff5a36,roughness:.4});
-function maraca(){const g=new THREE.Group();const b=new THREE.Mesh(new THREE.SphereGeometry(.11,16,12),mm);b.scale.y=1.3;b.position.y=-.22;const h=new THREE.Mesh(new THREE.CylinderGeometry(.025,.025,.2,8),new THREE.MeshStandardMaterial({color:0x7a4a20}));h.position.y=-.06;g.add(b,h);return g;}
-const mL=maraca(),mR=maraca();mL.position.y=-.68;mR.position.y=-.68;armL.add(mL);armR.add(mR);
+// ===== 奥のかべとネオン看板 =====
+const wall=new THREE.Mesh(new THREE.PlaneGeometry(30,12),new THREE.MeshBasicMaterial({color:0x1e0a14}));wall.position.set(0,4,-7);world.add(wall);
+function neonTex(){const c=document.createElement('canvas');c.width=1024;c.height=256;const g=c.getContext('2d');
+ g.font='900 170px "Arial Black",Impact,sans-serif';g.textAlign='center';g.textBaseline='middle';
+ g.shadowColor='#ff3d8b';g.shadowBlur=40;g.strokeStyle='#ff7ab0';g.lineWidth=10;g.strokeText('TEQUILA!',512,135);
+ g.shadowColor='#ffe23d';g.shadowBlur=25;g.fillStyle='#fff4c0';g.fillText('TEQUILA!',512,135);
+ const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;return t;}
+const sign=new THREE.Mesh(new THREE.PlaneGeometry(6.4,1.6),new THREE.MeshBasicMaterial({map:neonTex(),transparent:true,blending:THREE.AdditiveBlending,depthWrite:false}));
+sign.position.set(0,3.1,-6.9);world.add(sign);
+// サボテン（奥の左右）
 const cm=new THREE.MeshStandardMaterial({color:0x3f9b4a,roughness:.6});
-for(const [x,z] of [[-2.6,-1.5],[2.8,-1.8]]){const c=new THREE.Mesh(new THREE.CapsuleGeometry(.22,1.2,6,12),cm);c.position.set(x,.8,z);S.add(c);const a=new THREE.Mesh(new THREE.CapsuleGeometry(.12,.4,6,10),cm);a.position.set(x+.32,1.0,z);S.add(a);}
+for(const [x,z] of [[-3.4,-4.6],[3.6,-4.8]]){const c=new THREE.Mesh(new THREE.CapsuleGeometry(.25,1.4,6,12),cm);c.position.set(x,.9,z);world.add(c);const a=new THREE.Mesh(new THREE.CapsuleGeometry(.13,.45,6,10),cm);a.position.set(x+.36,1.15,z);world.add(a);}
 
+// ===== ミラーボール =====
+const ball=new THREE.Mesh(new THREE.IcosahedronGeometry(.5,2),new THREE.MeshStandardMaterial({color:0xdddddd,metalness:.35,roughness:.15,flatShading:true,emissive:0x222222}));
+ball.position.set(0,4.6,-2.5);world.add(ball);
+const ballLight=new THREE.PointLight(0xffffff,3,6);ballLight.position.set(0,4.6,-1.6);world.add(ballLight);
+
+// ===== スポットライトの光の筋 =====
+const beams=[];
+for(let i=0;i<5;i++){
+ const piv=new THREE.Group();piv.position.set(-4+i*2,6.5,-3.5);world.add(piv);
+ const mat=new THREE.MeshBasicMaterial({color:NEON[i%NEON.length],transparent:true,opacity:.16,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide});
+ const cone=new THREE.Mesh(new THREE.ConeGeometry(1.1,7.5,24,1,true),mat);cone.position.y=-3.75;piv.add(cone);
+ beams.push({piv,mat,ph:i*1.3});
+}
+// レーザー
+const lasers=[];
+for(let i=0;i<6;i++){
+ const piv=new THREE.Group();piv.position.set(i<3?-5.5:5.5,.4,-6);world.add(piv);
+ const mat=new THREE.MeshBasicMaterial({color:i%2?0x2eff7a:0xff2e6e,transparent:true,opacity:.75,blending:THREE.AdditiveBlending,depthWrite:false});
+ const bar=new THREE.Mesh(new THREE.BoxGeometry(.025,.025,16),mat);bar.position.z=8;piv.add(bar);
+ lasers.push({piv,mat,side:i<3?1:-1,ph:i});
+}
+
+// ===== 棒人間をつくる =====
+function makeStick(color,opt={}){
+ const M=new THREE.MeshStandardMaterial({color,roughness:.35,metalness:.05});
+ const man=new THREE.Group(),root=new THREE.Group();man.add(root);
+ const hip=new THREE.Group();root.add(hip);
+ const torso=new THREE.Mesh(new THREE.CapsuleGeometry(.13,.55,8,16),M);torso.position.y=.38;hip.add(torso);
+ const neck=new THREE.Group();neck.position.y=.75;hip.add(neck);
+ const head=new THREE.Mesh(new THREE.SphereGeometry(.24,24,18),M);head.position.y=.2;neck.add(head);
+ const hat=new THREE.Group();neck.add(hat);
+ if(opt.hat){const hm=new THREE.MeshStandardMaterial({color:opt.hatColor||0xe0a030,roughness:.7});
+  const brim=new THREE.Mesh(new THREE.CylinderGeometry(.5,.5,.03,28),hm);brim.position.y=.41;hat.add(brim);
+  const crown=new THREE.Mesh(new THREE.ConeGeometry(.2,.3,20),hm);crown.position.y=.57;hat.add(crown);}
+ function limb(len){const g=new THREE.Group();const m=new THREE.Mesh(new THREE.CapsuleGeometry(.065,len,6,10),M);m.position.y=-len/2;g.add(m);return g;}
+ const armL=limb(.6),armR=limb(.6);armL.position.set(-.2,.68,0);armR.position.set(.2,.68,0);hip.add(armL,armR);
+ const legL=limb(.8),legR=limb(.8);legL.position.set(-.1,0,0);legR.position.set(.1,0,0);hip.add(legL,legR);
+ const props=[];
+ if(opt.prop==='maraca'){const mm=new THREE.MeshStandardMaterial({color:0xff5a36,roughness:.4});
+  for(const a of [armL,armR]){const g=new THREE.Group();const b=new THREE.Mesh(new THREE.SphereGeometry(.11,14,10),mm);b.scale.y=1.3;b.position.y=-.22;const h=new THREE.Mesh(new THREE.CylinderGeometry(.025,.025,.2,8),new THREE.MeshStandardMaterial({color:0x7a4a20}));h.position.y=-.06;g.add(b,h);g.position.y=-.68;a.add(g);}}
+ if(opt.prop==='glow'){for(const a of [armL,armR]){const gm=new THREE.MeshBasicMaterial({color:NEON[Math.floor(Math.random()*NEON.length)]});const st=new THREE.Mesh(new THREE.CylinderGeometry(.035,.035,.42,8),gm);st.position.y=-.82;a.add(st);props.push(gm);}}
+ return {man,root,hip,torso,neck,head,hat,armL,armR,legL,legR,props,M};
+}
+
+// ===== 主役 =====
+const P0=makeStick(0xf2ede4,{hat:true,prop:'maraca'});
+const {man,root,hip,torso,neck,head,hat,armL,armR,legL,legR}=P0;world.add(man);
 function reset(){hip.position.set(0,1,0);hip.rotation.set(0,0,0);root.rotation.set(0,0,0);root.position.set(0,0,0);man.rotation.set(0,0,0);man.position.x=0;neck.rotation.set(0,0,0);neck.position.z=0;hat.position.set(0,0,0);hat.rotation.set(0,0,0);
  for(const l of [armL,armR,legL,legR]){l.rotation.set(0,0,0);}}
 const DANCES={
@@ -540,33 +605,112 @@ const AUTO=['jump','pose','flip','spin','dab','cart','hat'];
 const d=window.dancer={state:'idle',t:0,shake:0,cur:'sway',next:0,emo:null,et:0,
  emote(name){if(this.state==='fall')return;this.emo=name||AUTO[Math.floor(Math.random()*AUTO.length)];this.et=0;}};
 
-let last=performance.now(),beatClock=0;
-function fit(){const w=innerWidth,h=innerHeight;R.setSize(w,h,false);cam.aspect=w/h;cam.updateProjectionMatrix();
- const far=w<h?7.6:5.4;cam.position.set(0,1.6,far);cam.lookAt(0,1.0,0);man.position.y=w<h?-0.9:-0.3;}
+// ===== 観客 =====
+const crowd=[];
+const ROWS=[{z:-1.7,n:4,s:.9},{z:-3.0,n:6,s:.85},{z:-4.3,n:7,s:.8}];
+const KINDS=['pogo','wave','pump','clap','sway','bang','twist'];
+const BODY=[0xff7ab0,0x7ae8ff,0xfff07a,0xa8ff8a,0xffb07a,0xd2a8ff,0xffffff,0xff9a9a];
+ROWS.forEach((row,ri)=>{for(let i=0;i<row.n;i++){
+ const p=makeStick(BODY[(ri*3+i)%BODY.length],{hat:Math.random()<.35,hatColor:NEON[(i+ri)%NEON.length],prop:Math.random()<.55?'glow':(Math.random()<.4?'maraca':null)});
+ p.man.scale.setScalar(row.s);p.row=ri;p.i=i;p.n=row.n;p.z=row.z;p.man.position.z=row.z;
+ p.kind=KINDS[Math.floor(Math.random()*KINDS.length)];p.ph=Math.random()*6.28;p.next=Math.random()*20;p.jy=0;p.jv=0;
+ world.add(p.man);crowd.push(p);
+}});
+function placeCrowd(){
+ const camZ=cam.position.z,half=Math.tan(THREE.MathUtils.degToRad(cam.fov/2))*cam.aspect;
+ for(const p of crowd){
+  const w=Math.max(1.2,(camZ-p.z)*half*.92);
+  const step=(2*w)/(p.n-1);let x=-w+p.i*step;
+  if(p.row===0&&Math.abs(x)<.9)x=Math.sign(x||1)*.9; // 主役とかぶらない
+  p.man.position.x=x+(p.row%2?step*.25:0);
+ }
+}
+function animCrowd(p,b,hype,dt){
+ const q=b+p.ph*.15;const s=Math.sin(q),s2=Math.sin(q*2);
+ p.hip.position.set(0,1,0);p.hip.rotation.set(0,0,0);p.root.rotation.set(0,0,0);p.neck.rotation.set(0,0,0);p.man.rotation.y=0;
+ for(const l of [p.armL,p.armR,p.legL,p.legR])l.rotation.set(0,0,0);
+ switch(p.kind){
+  case 'pogo':p.hip.position.y=1+Math.abs(s)*.28;p.armL.rotation.z=-2.7;p.armR.rotation.z=2.7;p.legL.rotation.x=-Math.abs(s)*.3;p.legR.rotation.x=-Math.abs(s)*.3;break;
+  case 'wave':p.armL.rotation.z=-2.5+s*.5;p.armR.rotation.z=2.5+s*.5;p.hip.rotation.z=s*.12;p.hip.position.y=1+Math.abs(s)*.06;break;
+  case 'pump':{const up=s>0;p.armR.rotation.z=up?2.9:1.2;p.armR.rotation.x=up?0:-.6;p.armL.rotation.z=-.5;p.hip.position.y=1+Math.abs(s)*.1;p.neck.rotation.x=up?-.2:.2;break;}
+  case 'clap':{const c=Math.abs(s2);p.armL.rotation.z=-1.1+c*.85;p.armR.rotation.z=1.1-c*.85;p.armL.rotation.x=p.armR.rotation.x=-1.4;p.hip.position.y=1+c*.05;break;}
+  case 'sway':p.hip.rotation.z=s*.15;p.man.rotation.y=s*.4;p.armL.rotation.z=-1-s2*.5;p.armR.rotation.z=1-s2*.5;p.hip.position.y=1+Math.abs(s)*.06;break;
+  case 'bang':p.neck.rotation.x=Math.abs(s2)*.8-.2;p.hip.rotation.x=Math.abs(s2)*.2;p.armR.rotation.z=2.6;p.armL.rotation.z=-.4;break;
+  case 'twist':p.hip.rotation.y=s2*.6;p.man.rotation.y=-s2*.3;p.armL.rotation.z=-1.2;p.armR.rotation.z=1.2;p.armL.rotation.x=p.armR.rotation.x=-.8;p.hip.position.y=.92;break;
+ }
+ // 盛り上がり：一斉にジャンプ＆ばんざい
+ if(hype>0.05){p.armL.rotation.z=-2.9+Math.sin(q*4)*.2;p.armR.rotation.z=2.9+Math.sin(q*4+1)*.2;}
+ p.jv-=9.8*dt;p.jy=Math.max(0,p.jy+p.jv*dt);if(p.jy===0&&p.jv<0)p.jv=0;
+ p.root.position.y=p.jy;
+}
+
+// ===== 盛り上げ（成功・つなぎ目で呼ぶ） =====
+let hype=0,strobe=0,punch=0;
+window.stageFx={hype(level){
+ hype=Math.max(hype,level);strobe=Math.max(strobe,level);punch=Math.max(punch,level);
+ for(const p of crowd){if(p.jy===0)p.jv=2.6+Math.random()*1.8*level;}
+ for(const b of beams)b.mat.color.setHex(NEON[Math.floor(Math.random()*NEON.length)]);
+}};
+
+let last=performance.now(),freeClock=0,lastBeat=-1;
+const camBase=new THREE.Vector3();
+function fit(){const w=innerWidth,h=innerHeight;R.setSize(w,h,false);cam.aspect=w/h;cam.fov=w<h?44:40;cam.updateProjectionMatrix();
+ const far=w<h?8.4:6.2;camBase.set(0,1.7,far);cam.position.copy(camBase);cam.lookAt(0,1.0,-1);world.position.y=w<h?-0.85:-0.3;placeCrowd();}
 addEventListener('resize',fit);fit();
 const COLORS=[0xff8844,0xff4477,0x44ccff,0xffdd33,0x77ff88,0xc58bff];
+const spot=new THREE.PointLight(0xff8844,6,8);spot.position.set(0,3.2,1.5);world.add(spot);
+const tmpC=new THREE.Color();
 function loop(p){
  const dt=Math.min(.05,(p-last)/1000);last=p;
- const amt=d.state==='dance'?1:.35;
- beatClock+=dt*(176/60)*Math.PI*amt;
- const b=beatClock;
+ // 拍：遊んでいる間は曲の時刻に合わせる
+ const st=window.songState||{};
+ let bt;
+ if(st.moving&&st.t!=null){bt=(st.t+(p-st.at)/1000-H1)/BEAT_SEC;}
+ else{freeClock+=dt/(BEAT_SEC*(d.state==='dance'?1:2.2));bt=freeClock;}
+ const b=bt*Math.PI,beatIdx=Math.floor(bt),frac=bt-beatIdx;
+ const onBeat=beatIdx!==lastBeat;lastBeat=beatIdx;
+ const party=d.state==='dance'?1:.45;
+ hype=Math.max(0,hype-dt*.9);strobe=Math.max(0,strobe-dt*3.5);punch=Math.max(0,punch-dt*2.5);
+
+ // 主役
  if(d.state==='dance'&&b>d.next){let n;do{n=NAMES[Math.floor(Math.random()*NAMES.length)]}while(n===d.cur);d.cur=n;d.next=b+Math.PI*8;spot.color.setHex(COLORS[Math.floor(Math.random()*COLORS.length)]);}
- const baseY=man.position.y;reset();man.position.y=baseY;
- d.t+=dt;
- if(d.state==='fall'){
-  const k=Math.min(1,d.t/.7);root.rotation.x=-k*Math.PI/2;root.position.y=k*.1;hip.position.y=1-k*.75;armL.rotation.z=-.3;armR.rotation.z=.3;
- }else if(d.emo){
-  d.et+=dt;const k=Math.min(1,d.et/EMO_LEN[d.emo]);EMOTES[d.emo](k);if(k>=1)d.emo=null;
- }else{
-  DANCES[d.state==='dance'?d.cur:'sway'](b*(d.state==='dance'?1:.6));
-  if(d.state!=='dance'){armL.rotation.z*=.6;armR.rotation.z*=.6;}
- }
+ reset();d.t+=dt;
+ if(d.state==='fall'){const k=Math.min(1,d.t/.7);root.rotation.x=-k*Math.PI/2;root.position.y=k*.1;hip.position.y=1-k*.75;armL.rotation.z=-.3;armR.rotation.z=.3;}
+ else if(d.emo){d.et+=dt;const k=Math.min(1,d.et/EMO_LEN[d.emo]);EMOTES[d.emo](k);if(k>=1)d.emo=null;}
+ else{DANCES[d.state==='dance'?d.cur:'sway'](b);if(d.state!=='dance'){armL.rotation.z*=.6;armR.rotation.z*=.6;}}
  if(d.shake>0){d.shake-=dt;neck.rotation.z+=Math.sin(p/30)*.3;}
  ring.material.color.setHex(d.emo?0x7be07b:0xffcc33);
- spot.intensity=d.state==='dance'?5+Math.abs(Math.sin(b))*4:3;
+
+ // 観客
+ for(const c of crowd){
+  if(d.state==='dance'&&b>c.next){c.kind=KINDS[Math.floor(Math.random()*KINDS.length)];c.next=b+Math.PI*(8+Math.floor(Math.random()*3)*4);}
+  animCrowd(c,b*(d.state==='dance'?1:.7),hype,dt);
+  for(const gm of c.props)gm.color.setHSL(((p/4000)+c.i*.13+c.row*.3)%1,1,.55+strobe*.3);
+ }
+ // 床：拍ごとに模様が流れて光る
+ let i=0;const pulse=Math.pow(1-frac,2);
+ for(let x=0;x<TX;x++)for(let z=0;z<TZ;z++){
+  const k=(x+z+beatIdx)%NEON.length,on=((x*3+z*5+beatIdx)%4)===0;
+  tmpC.setHex(NEON[k]).multiplyScalar(party*(on?.35+pulse*.65:.08+pulse*.08)+strobe*.6);
+  tiles.setColorAt(i++,tmpC);
+ }
+ tiles.instanceColor.needsUpdate=true;
+ // ライト・レーザー・ミラーボール
+ const T=p/1000;
+ beams.forEach((bm,j)=>{bm.piv.rotation.z=Math.sin(T*.9+bm.ph)*.55;bm.piv.rotation.x=Math.cos(T*.7+bm.ph)*.3;bm.mat.opacity=(.1+pulse*.12)*party+strobe*.25;});
+ if(onBeat&&d.state==='dance'&&beatIdx%4===0)beams.forEach(bm=>bm.mat.color.setHex(NEON[Math.floor(Math.random()*NEON.length)]));
+ lasers.forEach(l=>{l.piv.rotation.y=l.side*(.35+Math.sin(T*1.6+l.ph)*.3);l.piv.rotation.x=-.05+Math.sin(T*1.1+l.ph*2)*.12;l.mat.opacity=d.state==='dance'?(.35+pulse*.5+strobe*.3):0;});
+ ball.rotation.y+=dt*.8;ballLight.intensity=2+pulse*3*party+strobe*8;ballLight.color.setHSL((T*.1)%1,.6,.7);
+ sign.material.opacity=.75+pulse*.25*party+(Math.random()<.02?-.4:0);sign.scale.setScalar(1+pulse*.04*party+punch*.08);
+ hemi.intensity=.9+strobe*1.6;
+ spot.intensity=d.state==='dance'?5+pulse*4:3;
+ // カメラ：拍でゆれ、盛り上がりでぐっと寄る
+ cam.position.set(camBase.x+Math.sin(b*.5)*.06*party,camBase.y+pulse*.04*party,camBase.z-punch*1.2);
+ cam.lookAt(0,1.0+world.position.y*.2,-1);
  R.render(S,cam);requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
 </script>
+
 </body>
 </html>
