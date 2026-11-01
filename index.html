@@ -118,6 +118,7 @@ table.rank tr.me td{background:#4a2c1a}
   <input id="nameIn" maxlength="12" placeholder="なまえ（12文字まで）" autocomplete="off">
   <p class="note" id="sendMsg"></p>
   <button id="sendBtn">ランキングに送る</button>
+  <button id="xBtn" style="background:#000;color:#fff">Xに投稿</button>
   <button class="sub" id="againBtn">もう一回</button>
   <button class="sub" id="toTitle">タイトルへ</button>
  </div>
@@ -204,6 +205,13 @@ $('againBtn').onclick=startGame;
 $('rankBtn').onclick=()=>openRank();
 $('rankBack').onclick=()=>{if(mode==='over')show('over');else showTitle();};
 $('quit').onclick=endGame;
+const GAME_URL='https://nasubi-no-oniwa.github.io/tequila/';
+$('xBtn').onclick=()=>{
+ const txt='「テキーラ！」'+lastResult.c+'回\n耐えた時間 '+fmt(lastResult.s)+'\n\n#ドパゲー #ドパがきにはできないゲーム';
+ const u='https://x.com/intent/post?text='+encodeURIComponent(txt)+'&url='+encodeURIComponent(GAME_URL);
+ const w=window.open(u,'_blank');if(!w)location.href=u;
+};
+let lastResult={c:0,s:0};
 
 function startGame(){
  show(null);mode='play';count=0;combo=0;playSec=0;early=[];
@@ -217,7 +225,7 @@ function startGame(){
 }
 function endGame(){
  if(mode!=='play')return;
- mode='over';$('btn').disabled=true;$('quit').hidden=true;glow(null);
+ mode='over';$('btn').disabled=true;$('quit').hidden=true;glow(null);lastResult={c:count,s:Math.floor(playSec)};
  try{player.pauseVideo()}catch(e){}
  const nb=count>best.c||(count===best.c&&count>0&&playSec<best.s);
  if(nb){best={c:count,s:Math.floor(playSec)};ls.set('tequila_best2',best);}
