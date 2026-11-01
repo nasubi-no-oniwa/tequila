@@ -136,12 +136,14 @@ table.rank tr.me td{background:#4a2c1a}
 // ===== 設定 =====
 const VIDEO_ID='4hswHOEQfj8';
 const WINDOW=0.5; // 前後0.5秒（合計1秒）
-// 「テキーラ！」の秒数（全員共通）。ループの長さはテキーラ2回分の間かくに合わせてリズムがずれないようにする
-const H1=52.76,H2=96.1,LOOP_FROM=10.72;
-let CFG={hits:[H1,H2],loopFrom:LOOP_FROM,loopTo:+(LOOP_FROM+2*(H2-H1)).toFixed(2)};
+// 「テキーラ！」の秒数（全員共通）
+const H1=52.76,H2=96.1;
+// ループ：録音を調べて、同じ音がくり返す長さ（88.665秒）と、前後の音がいちばん似ている位置を選んだ
+const LOOP_LEN=88.665,LOOP_FROM=16.05;
+let CFG={hits:[H1,H2],loopFrom:LOOP_FROM,loopTo:LOOP_FROM+LOOP_LEN};
 const FADE=0.12;  // つなぎ目で音を小さく→大きくする秒数
 const EARLY=0.15; // 戻る操作を早めに出す秒数（読み込みで止まる分）
-const BEAT=(H2-H1)/128; // テキーラの間は128拍 → 1拍の秒数（テンポ約177）
+const BEAT=LOOP_LEN/256; // ループは256拍 → 1拍の秒数（テンポ約173）
 // ===== つなぎ目のすき間をうめるマラカスとボンゴ =====
 let MC=null,maskedCycle=-1,cycle=0;
 function ac(){try{MC=MC||new (window.AudioContext||window.webkitAudioContext)();if(MC.state==='suspended')MC.resume();}catch(e){}return MC;}
@@ -157,8 +159,8 @@ function maskFill(r){
  for(let k=k0;k<=k1;k++){
   const st=H1+k*BEAT/2,at=base+st;if(at<c.currentTime)continue;
   const edge=Math.min(1,Math.max(.25,1-Math.abs(st-(CFG.loopTo-EARLY))/0.8));
-  shaker(at,.35*edge);
-  if(k%2===0)bongo(at,(k/2)%2?330:220,.32*edge);
+  shaker(at,.22*edge);
+  if(k%2===0)bongo(at,(k/2)%2?330:220,.2*edge);
   else if(Math.abs(st-(CFG.loopTo-EARLY))<.5)bongo(at+BEAT/4,280,.2);
  }
 }
