@@ -76,7 +76,7 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);font-family:
 <script>
 // ===== 設定 =====
 const VIDEO_ID='4hswHOEQfj8';
-const WINDOW=0.3; // 前後0.3秒
+const WINDOW=0.5; // 前後0.5秒（合計1秒）
 // 仮の値。タイミング登録をすると上書きされる
 let CFG={hits:[],loopFrom:0,loopTo:0};
 try{const s=JSON.parse(localStorage.getItem('tequila_cfg')||'null');if(s&&Array.isArray(s.hits))CFG=s;}catch(e){}
