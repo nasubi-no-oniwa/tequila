@@ -28,6 +28,11 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);font-family:
 #btn{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 22px);width:170px;height:170px;margin-left:-85px;border-radius:50%;border:none;background:radial-gradient(circle at 35% 30%,#ff8a5c,var(--hot) 60%,#b52a12);color:#fff;font-size:30px;font-weight:900;box-shadow:0 10px 0 #7a1a08,0 0 0 6px #ffffff22;font-family:inherit;touch-action:manipulation;z-index:6}
 #btn.down{transform:translateY(8px);box-shadow:0 2px 0 #7a1a08,0 0 0 6px #ffffff22}
 #btn.good{background:radial-gradient(circle at 35% 30%,#fff3a0,var(--accent) 60%,#c98a00);color:#7a1a08}
+#btn.soon{box-shadow:0 10px 0 #7a1a08,0 0 0 6px #ffcc3388,0 0 calc(var(--g,0)*40px) calc(var(--g,0)*10px) #ffcc33aa}
+#btn.now{background:radial-gradient(circle at 35% 30%,#fff3a0,var(--accent) 60%,#c98a00);color:#7a1a08;box-shadow:0 10px 0 #7a1a08,0 0 0 9px #fff,0 0 50px 16px #ffcc33}
+#judge{position:fixed;left:0;right:0;bottom:calc(env(safe-area-inset-bottom,0px) + 205px);text-align:center;font-size:22px;font-weight:900;z-index:8;pointer-events:none;opacity:0;text-shadow:0 3px 0 #000a}
+#judge.show{animation:jd .9s ease-out}
+@keyframes jd{0%{opacity:1;transform:translateY(10px)}20%{transform:translateY(0)}75%{opacity:1}100%{opacity:0;transform:translateY(-14px)}}
 #btn[disabled]{filter:grayscale(.8) brightness(.6)}
 #quit{position:fixed;right:calc(env(safe-area-inset-right,0px) + 10px);top:calc(env(safe-area-inset-top,0px) + 10px);z-index:8;padding:10px 14px;border-radius:12px;border:none;background:#4a2c1aee;color:var(--fg);font-weight:800;font-size:15px;font-family:inherit}
 .panel{position:fixed;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;background:#1b0f0acc;padding:16px}
@@ -69,14 +74,15 @@ table.rank tr.me td{background:#4a2c1a}
 <div id="hud"><div id="count">0</div><div id="countLabel">テキーラ成功</div><div id="time">0:00</div><div id="combo"></div><div id="msg">読み込み中…</div></div>
 <div id="pop">テキーラ！</div>
 <button id="btn" disabled>テキーラ！</button>
-<button id="quit" hidden>やめる</button>
+<button id="quit" hidden>我慢できなくなった</button>
+<div id="judge"></div>
 <button id="emoBtn">エモート</button>
 <div id="emoGrid" hidden></div>
 
 <div class="panel" id="title" hidden>
  <div class="card">
   <h1>テキーラ</h1>
-  <p>曲のサビが永遠にループします。<br>「テキーラ！」の瞬間にボタンを押してください。<br>ミスしても終わりません。やめるまで続きます。</p>
+  <p>曲のサビが永遠にループします。<br>「テキーラ！」の瞬間にボタンを押してください。<br>ボタンが光ってきたら押しどき。<br>ミスしても終わりません。我慢できなくなるまで続きます。</p>
   <p id="best">さいこう記録：0回</p>
   <p style="font-size:12px">広告が出たらテレビのスキップを押してね</p>
   <button id="startBtn">はじめる</button>
@@ -204,7 +210,7 @@ function startGame(){
 }
 function endGame(){
  if(mode!=='play')return;
- mode='over';$('btn').disabled=true;$('quit').hidden=true;
+ mode='over';$('btn').disabled=true;$('quit').hidden=true;glow(null);
  try{player.pauseVideo()}catch(e){}
  const nb=count>best.c||(count===best.c&&count>0&&playSec<best.s);
  if(nb){best={c:count,s:Math.floor(playSec)};ls.set('tequila_best2',best);}
@@ -260,15 +266,21 @@ function press(){
  const len=CFG.loopTo-CFG.loopFrom;
  for(let i=0;i<CFG.hits.length;i++){
   const h=CFG.hits[i];
-  if(!hitDone[i]&&Math.abs(t-h)<=WINDOW){hitDone[i]=true;success();return;}
+  if(!hitDone[i]&&Math.abs(t-h)<=WINDOW){hitDone[i]=true;success(t-h);return;}
   // ループの終わりぎわに、次の周の最初のテキーラを先に押した
-  if(!early[i]&&Math.abs(t-(h+len))<=WINDOW){early[i]=true;success();return;}
+  if(!early[i]&&Math.abs(t-(h+len))<=WINDOW){early[i]=true;success(t-h-len);return;}
  }
- // ミスはおとがめなし
+ // ミスはおとがめなし。どれだけずれたかを出す
+ let bd=Infinity;
+ for(const h of CFG.hits)for(const hh of [h-len,h,h+len]){const dd=t-hh;if(Math.abs(dd)<Math.abs(bd))bd=dd;}
+ if(Math.abs(bd)<=2.5)judge(bd<0?'早い！ あと'+(-bd).toFixed(1)+'秒':'遅い！ '+bd.toFixed(1)+'秒おそい',bd<0?'#5ac8ff':'#ff8a7a');
+ else judge('今じゃない','#e9c99a');
  dancer.shake=0.25;
 }
-function success(){
+function judge(txt,col){const j=$('judge');j.textContent=txt;j.style.color=col;j.classList.remove('show');void j.offsetWidth;j.classList.add('show');}
+function success(dd){
  count++;combo++;
+ const a=Math.abs(dd);judge(a<.1?'ピッタリ！':a<.25?'いい感じ！ '+(dd<0?'少し早い':'少し遅い'):'ギリギリ！ '+(dd<0?'早め':'遅め'),a<.1?'#ffcc33':'#7be07b');
  const c=$('count');c.textContent=count;c.classList.remove('bump');void c.offsetWidth;c.classList.add('bump');
  $('combo').textContent=combo>=2?combo+'連続テキーラ！':'';
  celebrate(true);
@@ -387,9 +399,24 @@ function tick(){
   // 押しそびれたら連続が切れる（ゲームは続く）
   const t=now();
   for(let i=0;i<CFG.hits.length;i++){if(!hitDone[i]&&t>CFG.hits[i]+WINDOW&&t<CFG.loopTo&&!missArm[i]){missArm[i]=true;if(combo>0){combo=0;$('combo').textContent='';}}}
-  // 判定中はボタンを光らせる…のは円と同じでタイミングがばれるのでやらない
- }
+  glow(t);
+ }else glow(null);
  if(sinceSeek<300)missArm=[];
+}
+// 押しどきの予告：テキーラの1.2秒前から光りはじめ、判定中は強く光る
+const SOON=1.2;
+function glow(t){
+ const b=$('btn');
+ if(t==null||mode!=='play'){b.classList.remove('soon','now');return;}
+ const len=CFG.loopTo-CFG.loopFrom;let dmin=Infinity;
+ for(let i=0;i<CFG.hits.length;i++){
+  const h=CFG.hits[i];
+  if(!hitDone[i]){const d=h-t;if(d>=-WINDOW&&d<dmin)dmin=d;}
+  if(!early[i]){const d=h+len-t;if(d>=-WINDOW&&d<dmin)dmin=d;}
+ }
+ if(Math.abs(dmin)<=WINDOW||(dmin<0&&dmin>=-WINDOW)){b.classList.add('now');b.classList.remove('soon');}
+ else if(dmin<=SOON+WINDOW){b.classList.remove('now');b.classList.add('soon');b.style.setProperty('--g',(1-(dmin-WINDOW)/SOON).toFixed(2));}
+ else b.classList.remove('soon','now');
 }
 window.tick=tick;
 setInterval(tick,40);
