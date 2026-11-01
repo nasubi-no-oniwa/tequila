@@ -94,7 +94,7 @@ table.rank tr.me td{background:#4a2c1a}
   <p style="font-size:12px">広告が出たらテレビのスキップを押してね</p>
   <button id="startBtn">はじめる</button>
   <button class="sub" id="rankBtn">ランキング</button>
-  <button class="sub" id="regBtn">タイミング登録（試作用）</button>
+  <button class="sub" id="regBtn" hidden>タイミング登録</button>
  </div>
 </div>
 
@@ -192,13 +192,15 @@ function showTitle(){
  mode='title';show('title');$('btn').disabled=true;$('quit').hidden=true;
  $('best').textContent='さいこう記録：'+best.c+'回（'+fmt(best.s)+'）';
  const ok=CFG.hits.length>0;
- $('msg').textContent=ok?'':'先に「タイミング登録」をしてね';
+ $('msg').textContent=ok?'':'準備中です。もう少し待ってね';
  $('startBtn').disabled=!ok;$('startBtn').style.opacity=ok?1:.4;
  window.dancer&&(dancer.state='idle');
  try{player.pauseVideo()}catch(e){}
 }
 $('startBtn').onclick=()=>{if(CFG.hits.length)startGame();};
 $('regBtn').onclick=()=>{show('regPanel');mode='regwait';updReg();};
+// タイミング登録は隠しページ（アドレスの最後に #reg を付けたときだけ出す）
+const REG_ON=location.hash==='#reg';if(REG_ON)$('regBtn').hidden=false;
 $('regDone').onclick=()=>{try{player.pauseVideo()}catch(e){}loopFloat.hidden=true;showTitle();};
 $('toTitle').onclick=showTitle;
 $('againBtn').onclick=startGame;
