@@ -94,7 +94,6 @@ table.rank tr.me td{background:#4a2c1a}
   <p style="font-size:12px">広告が出たらテレビのスキップを押してね</p>
   <button id="startBtn">はじめる</button>
   <button class="sub" id="rankBtn">ランキング</button>
-  <button class="sub" id="regBtn" hidden>タイミング登録</button>
  </div>
 </div>
 
@@ -137,8 +136,10 @@ table.rank tr.me td{background:#4a2c1a}
 // ===== 設定 =====
 const VIDEO_ID='4hswHOEQfj8';
 const WINDOW=0.5; // 前後0.5秒（合計1秒）
-let CFG={hits:[],loopFrom:0,loopTo:0};
-try{const s=JSON.parse(localStorage.getItem('tequila_cfg')||'null');if(s&&Array.isArray(s.hits)&&s.hits.length&&s.loopTo>s.loopFrom)CFG=s;}catch(e){}
+// 「テキーラ！」の秒数（全員共通）。ループの長さはテキーラ2回分の間かくに合わせてリズムがずれないようにする
+const H1=52.76,H2=96.1,LOOP_FROM=10.72;
+let CFG={hits:[H1,H2],loopFrom:LOOP_FROM,loopTo:+(LOOP_FROM+2*(H2-H1)).toFixed(2)};
+const FADE=0.3; // つなぎ目で音を小さく→大きくする秒数
 const ls={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
 let best=ls.get('tequila_best2',{c:0,s:0});
 
@@ -177,7 +178,10 @@ function now(){
  if(!playing||Math.abs(r-t)>0.2){est={t:r,at:p};t=r;}
  return t;
 }
+let vol=100;
+function setVol(v){v=Math.max(0,Math.min(100,Math.round(v)));if(v!==vol){vol=v;try{player.setVolume(v)}catch(e){}}}
 function seekLoop(){
+ if(raw()>CFG.loopFrom+5)setVol(0); // ループの時だけ（広告の音には触らない）
  player.seekTo(CFG.loopFrom,true);
  if(player.getPlayerState()!==1)player.playVideo();
  lastSeekAt=performance.now();est={t:CFG.loopFrom,at:lastSeekAt};
@@ -189,7 +193,7 @@ const PANELS=['title','regPanel','over','rankPanel'];
 function show(id){PANELS.forEach(p=>$(p).hidden=(p!==id));}
 function fmt(s){s=Math.floor(s);const h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=s%60;return (h?h+':'+String(m).padStart(2,'0'):m)+':'+String(x).padStart(2,'0');}
 function showTitle(){
- mode='title';show('title');$('btn').disabled=true;$('quit').hidden=true;
+ setVol(100);mode='title';show('title');$('btn').disabled=true;$('quit').hidden=true;
  $('best').textContent='さいこう記録：'+best.c+'回（'+fmt(best.s)+'）';
  const ok=CFG.hits.length>0;
  $('msg').textContent=ok?'':'準備中です。もう少し待ってね';
@@ -198,9 +202,7 @@ function showTitle(){
  try{player.pauseVideo()}catch(e){}
 }
 $('startBtn').onclick=()=>{if(CFG.hits.length)startGame();};
-$('regBtn').onclick=()=>{show('regPanel');mode='regwait';updReg();};
-// タイミング登録は隠しページ（アドレスの最後に #reg を付けたときだけ出す）
-const REG_ON=location.hash==='#reg';if(REG_ON)$('regBtn').hidden=false;
+
 $('regDone').onclick=()=>{try{player.pauseVideo()}catch(e){}loopFloat.hidden=true;showTitle();};
 $('toTitle').onclick=showTitle;
 $('againBtn').onclick=startGame;
@@ -408,6 +410,11 @@ function tick(){
  // ループ：サビの終わりを過ぎたら頭へ。外へ出ていたら戻す
  if(sinceSeek>900&&(r>=CFG.loopTo-0.05||r<CFG.loopFrom-1.5)){
   if(r>=CFG.loopTo-0.05||moving)seekLoop();
+ }
+ // つなぎ目：終わりぎわは音を小さく、戻った直後は大きく
+ if(moving){
+  const tail=(CFG.loopTo-r)/FADE,head=sinceSeek<5000?(r-CFG.loopFrom)/FADE:1;
+  setVol(100*Math.max(0,Math.min(1,tail,head)));
  }
  const inLoop=r>=CFG.loopFrom-0.3&&r<CFG.loopTo+0.3;
  if(moving&&inLoop){
