@@ -203,7 +203,7 @@ const tag=document.createElement('script');tag.src='https://www.youtube.com/ifra
 window.onYouTubeIframeAPIReady=()=>{
  player=new YT.Player('yt',{width:240,height:200,videoId:VIDEO_ID,
   playerVars:{controls:0,disablekb:1,playsinline:1,rel:0,fs:0,iv_load_policy:3,modestbranding:1},
-  events:{onReady:()=>{ready=true;showTitle();},onStateChange:onState,onPlaybackRateChange:e=>{if(e.data!==1&&mode==='play')speedCheat();},onError:e=>{$('msg').textContent='動画を読み込めませんでした（エラー'+e.data+'）';}}});
+  events:{onReady:()=>{ready=true;showTitle();sendPending().then(c=>{if(c)$('msg').textContent='前に送れなかった記録（'+c+'回）をランキングに送りました';}).catch(()=>{});},onStateChange:onState,onPlaybackRateChange:e=>{if(e.data!==1&&mode==='play')speedCheat();},onError:e=>{$('msg').textContent='動画を読み込めませんでした（エラー'+e.data+'）';}}});
 };
 function onState(e){
  playing=(e.data===1);
@@ -411,11 +411,13 @@ const FB={apiKey:'AIzaSyCMwGPHPKsDByV07QPq56-PGXTDxcYVNfc',databaseURL:'https://
 const RANK='tequila/scores';
 const NG=['ちんこ','ちんぽ','まんこ','せっくす','セックス','きんたま','レイプ','死ね','しね','殺す','ころす','ガイジ','キチガイ','きちがい','ニガー','チョン','支那','fuck','shit','bitch','cunt','dick','pussy','nigger','nigga','faggot','retard','whore','slut','rape','porn','nazi','hitler','씨발','시발','병신','좆','肏','屄','屌','幹你','操你','婊子'];
 const badName=s=>{const n=s.normalize('NFKC').toLowerCase().replace(/[\s・._\-ー〜~!！?？*＊]/g,'');return NG.some(w=>n.includes(w.normalize('NFKC').toLowerCase()));};
+// 通信そのものが切れた（Failed to fetch など）ときは、少し待って3回までやり直す
+async function fetchR(url,opt){let err;for(let i=0;i<3;i++){try{return await fetch(url,opt);}catch(e){err=e;await new Promise(r=>setTimeout(r,700*(i+1)));}}throw err;}
 async function fbAuth(){
  let a=ls.get('tq_auth',null);if(a&&a.exp>Date.now()+60000)return a;
- if(a&&a.refresh){try{const r=await fetch('https://securetoken.googleapis.com/v1/token?key='+FB.apiKey,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'grant_type=refresh_token&refresh_token='+encodeURIComponent(a.refresh)});
+ if(a&&a.refresh){try{const r=await fetchR('https://securetoken.googleapis.com/v1/token?key='+FB.apiKey,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'grant_type=refresh_token&refresh_token='+encodeURIComponent(a.refresh)});
   if(r.ok){const j=await r.json();a={uid:j.user_id,token:j.id_token,refresh:j.refresh_token,exp:Date.now()+(+j.expires_in)*1000};ls.set('tq_auth',a);return a;}}catch(_){}}
- const r=await fetch('https://identitytoolkit.googleapis.com/v1/accounts:signUp?key='+FB.apiKey,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({returnSecureToken:true})});
+ const r=await fetchR('https://identitytoolkit.googleapis.com/v1/accounts:signUp?key='+FB.apiKey,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({returnSecureToken:true})});
  if(!r.ok)throw new Error('auth');const j=await r.json();a={uid:j.localId,token:j.idToken,refresh:j.refreshToken,exp:Date.now()+(+j.expiresIn)*1000};ls.set('tq_auth',a);return a;
 }
 // ===== ずる対策：始めた時刻と途中経過をサーバーの時計で残す =====
@@ -425,13 +427,30 @@ const RUNS='tequila/runs';
 function runCall(method,body){
  run.q=run.q.then(async()=>{
   const a=await fbAuth();
-  const r=await fetch(FB.databaseURL+'/'+RUNS+'/'+a.uid+'.json?auth='+encodeURIComponent(a.token),{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const r=await fetchR(FB.databaseURL+'/'+RUNS+'/'+a.uid+'.json?auth='+encodeURIComponent(a.token),{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   if(!r.ok)throw new Error('run '+r.status);
  });
  return run.q;
 }
+// 送れなかった記録（あとで送り直す）
+async function sendPending(){
+ const pd=ls.get('tq_pending',null);if(!pd)return;
+ if(!(Date.now()-pd.at<86400000)){ls.set('tq_pending',null);return;}
+ const a=await fbAuth();if(a.uid!==pd.uid){ls.set('tq_pending',null);return;}
+ // サーバーが見ていた途中経過までなら送れる
+ const rr=await fetchR(FB.databaseURL+'/'+RUNS+'/'+a.uid+'.json?auth='+encodeURIComponent(a.token));if(!rr.ok)throw new Error('get '+rr.status);
+ const sv=await rr.json();if(!sv){ls.set('tq_pending',null);return;}
+ const c=Math.min(pd.c,sv.c),sec=Math.min(pd.s,sv.s);
+ if(c<1){ls.set('tq_pending',null);return;}
+ const cur=await fetchR(FB.databaseURL+'/'+RANK+'/'+a.uid+'.json').then(r=>r.ok?r.json():null).catch(()=>null);
+ if(cur&&cur.c>=c){ls.set('tq_pending',null);return;}
+ const r=await fetchR(FB.databaseURL+'/'+RANK+'/'+a.uid+'.json?auth='+encodeURIComponent(a.token),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({n:pd.n,c,s:Math.max(1,sec),t:{'.sv':'timestamp'}})});
+ if(r.status>=400&&r.status<500){ls.set('tq_pending',null);return;}
+ if(!r.ok)throw new Error('put '+r.status);
+ ls.set('tq_pending',null);return c;
+}
 function runStart(){
- run={ok:false,broken:false,q:Promise.resolve(),last:performance.now()};
+ run={ok:false,broken:false,q:sendPending().catch(()=>{}),last:performance.now()};
  const me=run;
  runCall('PUT',{st:{'.sv':'timestamp'},hb:{'.sv':'timestamp'},c:0,s:0}).then(()=>{if(run===me)me.ok=true;}).catch(()=>{me.q=Promise.resolve();});
 }
@@ -456,12 +475,21 @@ $('sendBtn').onclick=async()=>{
   if(!run.ok){m.textContent='始めたときに通信できなかったので、この回は送れません';m.className='note err';return;}
   await runBeat();
   if(run.broken){m.textContent='途中で10分以上止まっていたので、この回は送れません';m.className='note err';return;}
-  const cur=await fetch(FB.databaseURL+'/'+RANK+'/'+a.uid+'.json').then(r=>r.ok?r.json():null).catch(()=>null);
+  const cur=await fetchR(FB.databaseURL+'/'+RANK+'/'+a.uid+'.json').then(r=>r.ok?r.json():null).catch(()=>null);
   if(cur&&cur.c>=count){m.textContent='前に送った記録（'+cur.c+'回）の方が上なので、そのままです';m.className='note';sent=true;return;}
-  const r=await fetch(FB.databaseURL+'/'+RANK+'/'+a.uid+'.json?auth='+encodeURIComponent(a.token),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({n:name,c:count,s:Math.max(1,Math.floor(playSec)),t:{'.sv':'timestamp'}})});
+  let r=await fetchR(FB.databaseURL+'/'+RANK+'/'+a.uid+'.json?auth='+encodeURIComponent(a.token),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({n:name,c:count,s:Math.max(1,Math.floor(playSec)),t:{'.sv':'timestamp'}})});
+  let note='';
+  if(r.status>=400&&r.status<500){
+   // 最後の途中経過が届いていなかったときは、サーバーが見ていたところまでで送る
+   const rr=await fetchR(FB.databaseURL+'/'+RUNS+'/'+a.uid+'.json?auth='+encodeURIComponent(a.token));const sv=rr.ok?await rr.json():null;
+   if(sv&&sv.c>=1&&(!cur||sv.c>cur.c)){r=await fetchR(FB.databaseURL+'/'+RANK+'/'+a.uid+'.json?auth='+encodeURIComponent(a.token),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({n:name,c:Math.min(count,sv.c),s:Math.max(1,Math.min(Math.floor(playSec),sv.s)),t:{'.sv':'timestamp'}})});if(r.ok&&sv.c<count)note='（通信が切れていた分をのぞいて'+sv.c+'回で）';}
+  }
   if(!r.ok)throw new Error('put '+r.status);
-  sent=true;m.textContent='ランキングに載りました';m.className='note ok';openRank(a.uid);
- }catch(e){const why=String(e&&e.message||e).slice(0,40);m.textContent='送れませんでした。通信を確かめてね（'+why+(run.err?' / '+run.err.slice(0,30):'')+'）';m.className='note err';$('sendBtn').disabled=false;}
+  sent=true;ls.set('tq_pending',null);m.textContent='ランキングに載りました'+note;m.className='note ok';openRank(a.uid);
+ }catch(e){const why=String(e&&e.message||e).slice(0,40);
+  // 通信が切れていたときは記録を残しておき、次にこのページを開いたときに自動で送り直す
+  const au=ls.get('tq_auth',null);if(au&&au.uid&&!/^put 4/.test(why))ls.set('tq_pending',{n:name,c:count,s:Math.max(1,Math.floor(playSec)),uid:au.uid,at:Date.now()});
+  m.textContent='送れませんでした（'+why+(run.err?' / '+run.err.slice(0,30):'')+'）。通信が戻ったらもう一度押してね。このまま閉じても、次にこのページを開いたときに自動で送り直します（24時間以内）';m.className='note err';$('sendBtn').disabled=false;}
 };
 async function openRank(me){
  show('rankPanel');const box=$('rankBox');box.innerHTML='<p>読み込み中…</p>';
