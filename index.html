@@ -435,7 +435,7 @@ function runStart(){
 function runBeat(){
  if(!run.ok||run.broken)return run.q;
  run.last=performance.now();const me=run;
- return runCall('PATCH',{hb:{'.sv':'timestamp'},c:count,s:Math.floor(playSec)}).catch(e=>{if(String(e).includes('run 4'))me.broken=true;me.q=Promise.resolve();});
+ return runCall('PATCH',{hb:{'.sv':'timestamp'},c:count,s:Math.floor(playSec)}).then(()=>{me.err='';}).catch(e=>{me.err=String(e&&e.message||e);if(String(e).includes('run 4'))me.broken=true;me.q=Promise.resolve();});
 }
 setInterval(()=>{if(mode==='play'&&performance.now()-run.last>=30000)runBeat();},5000);
 
@@ -458,7 +458,7 @@ $('sendBtn').onclick=async()=>{
   const r=await fetch(FB.databaseURL+'/'+RANK+'/'+a.uid+'.json?auth='+encodeURIComponent(a.token),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({n:name,c:count,s:Math.max(1,Math.floor(playSec)),t:{'.sv':'timestamp'}})});
   if(!r.ok)throw new Error('put '+r.status);
   sent=true;m.textContent='ランキングに載りました';m.className='note ok';openRank(a.uid);
- }catch(e){m.textContent='送れませんでした。通信を確かめてね';m.className='note err';$('sendBtn').disabled=false;}
+ }catch(e){const why=String(e&&e.message||e).slice(0,40);m.textContent='送れませんでした。通信を確かめてね（'+why+(run.err?' / '+run.err.slice(0,30):'')+'）';m.className='note err';$('sendBtn').disabled=false;}
 };
 async function openRank(me){
  show('rankPanel');const box=$('rankBox');box.innerHTML='<p>読み込み中…</p>';
