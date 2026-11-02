@@ -270,6 +270,7 @@ function startGame(){
  seekLoop();
  dancer.state='dance';dancer.t=0;
  sent=false;$('sendMsg').textContent='';$('sendBtn').disabled=false;
+ runStart();
 }
 function endGame(){
  if(mode!=='play')return;
@@ -414,6 +415,30 @@ async function fbAuth(){
  const r=await fetch('https://identitytoolkit.googleapis.com/v1/accounts:signUp?key='+FB.apiKey,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({returnSecureToken:true})});
  if(!r.ok)throw new Error('auth');const j=await r.json();a={uid:j.localId,token:j.idToken,refresh:j.refreshToken,exp:Date.now()+(+j.expiresIn)*1000};ls.set('tq_auth',a);return a;
 }
+// ===== ずる対策：始めた時刻と途中経過をサーバーの時計で残す =====
+// 送れる記録は「サーバーが見ていた途中経過」まで。10分以上通信が途切れた回は送れない
+let run={ok:false,broken:false,q:Promise.resolve(),last:0};
+const RUNS='tequila/runs';
+function runCall(method,body){
+ run.q=run.q.then(async()=>{
+  const a=await fbAuth();
+  const r=await fetch(FB.databaseURL+'/'+RUNS+'/'+a.uid+'.json?auth='+encodeURIComponent(a.token),{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(!r.ok)throw new Error('run '+r.status);
+ });
+ return run.q;
+}
+function runStart(){
+ run={ok:false,broken:false,q:Promise.resolve(),last:performance.now()};
+ const me=run;
+ runCall('PUT',{st:{'.sv':'timestamp'},hb:{'.sv':'timestamp'},c:0,s:0}).then(()=>{if(run===me)me.ok=true;}).catch(()=>{me.q=Promise.resolve();});
+}
+function runBeat(){
+ if(!run.ok||run.broken)return run.q;
+ run.last=performance.now();const me=run;
+ return runCall('PATCH',{hb:{'.sv':'timestamp'},c:count,s:Math.floor(playSec)}).catch(e=>{if(String(e).includes('run 4'))me.broken=true;me.q=Promise.resolve();});
+}
+setInterval(()=>{if(mode==='play'&&performance.now()-run.last>=30000)runBeat();},5000);
+
 let sent=false;
 $('sendBtn').onclick=async()=>{
  const m=$('sendMsg'),name=$('nameIn').value.trim();
@@ -425,6 +450,9 @@ $('sendBtn').onclick=async()=>{
  ls.set('tequila_name',name);m.textContent='送信中…';m.className='note';$('sendBtn').disabled=true;
  try{
   const a=await fbAuth();
+  if(!run.ok){m.textContent='始めたときに通信できなかったので、この回は送れません';m.className='note err';return;}
+  await runBeat();
+  if(run.broken){m.textContent='途中で10分以上止まっていたので、この回は送れません';m.className='note err';return;}
   const cur=await fetch(FB.databaseURL+'/'+RANK+'/'+a.uid+'.json').then(r=>r.ok?r.json():null).catch(()=>null);
   if(cur&&cur.c>=count){m.textContent='前に送った記録（'+cur.c+'回）の方が上なので、そのままです';m.className='note';sent=true;return;}
   const r=await fetch(FB.databaseURL+'/'+RANK+'/'+a.uid+'.json?auth='+encodeURIComponent(a.token),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({n:name,c:count,s:Math.max(1,Math.floor(playSec)),t:{'.sv':'timestamp'}})});
@@ -437,7 +465,7 @@ async function openRank(me){
  try{
   const d=await fetch(FB.databaseURL+'/'+RANK+'.json?orderBy=%22c%22&limitToLast=100').then(r=>{if(!r.ok)throw 0;return r.json()});
   const myId=me||(ls.get('tq_auth',null)||{}).uid;
-  const rows=Object.entries(d||{}).map(([k,v])=>({k,...v})).sort((a,b)=>b.c-a.c||a.s-b.s||a.t-b.t);
+  const rows=Object.entries(d||{}).map(([k,v])=>({k,...v})).filter(r=>r.c<=r.s/44+3).sort((a,b)=>b.c-a.c||a.s-b.s||a.t-b.t);
   if(!rows.length){box.innerHTML='<p>まだ誰もいません。1番乗りしよう</p>';return;}
   box.innerHTML='<table class="rank">'+rows.map((r,i)=>'<tr'+(r.k===myId?' class="me"':'')+'><td class="r">'+(i+1)+'</td><td>'+esc(r.n)+'</td><td class="c">'+r.c+'回</td><td class="s">'+fmt(r.s)+'</td></tr>').join('')+'</table>';
  }catch(e){box.innerHTML='<p>ランキングを読み込めませんでした</p>';}
