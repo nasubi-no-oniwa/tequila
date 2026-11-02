@@ -190,6 +190,8 @@ let mode='title'; // title / play / regwait / reg / over
 let playing=false;
 let est={t:0,at:0};       // なめらかな再生位置
 let lastSeekAt=0,lastRaw=-1,lastRawAt=0;
+// ゲームの外（スマホのコントロールセンター等）で動画の時間を動かされていないかの見張り
+let legitT=-1,legitAt=0,tampered=false;
 let count=0,combo=0,playSec=0,hitDone=[],early=[],missArm=[];
 let reg={hits:[],loopFrom:-1,loopTo:0};
 
@@ -225,7 +227,7 @@ function seekLoop(){
  if(raw()>CFG.loopFrom+5)setVol(0); // ループの時だけ（広告の音には触らない）
  player.seekTo(CFG.loopFrom,true);
  if(player.getPlayerState()!==1)player.playVideo();
- lastSeekAt=performance.now();est={t:CFG.loopFrom,at:lastSeekAt};
+ lastSeekAt=performance.now();est={t:CFG.loopFrom,at:lastSeekAt};legitT=CFG.loopFrom;legitAt=lastSeekAt;
  hitDone=CFG.hits.map((h,i)=>!!early[i]);early=[];
 }
 
@@ -260,7 +262,7 @@ let lastResult={c:0,s:0};
 
 function startGame(){
  ac();startCrowd();crowdTo(CROWD_BASE,.8);
- show(null);mode='play';count=0;combo=0;playSec=0;early=[];
+ show(null);mode='play';count=0;combo=0;playSec=0;early=[];tampered=false;legitT=-1;
  hitDone=CFG.hits.map(()=>false);
  $('count').textContent='0';$('time').textContent='0:00';$('combo').textContent='';
  $('msg').textContent='サビが始まるのを待ってね';
@@ -273,9 +275,9 @@ function endGame(){
  if(mode!=='play')return;
  mode='over';$('btn').disabled=true;$('quit').hidden=true;glow(null);crowdTo(0,.6);lastResult={c:count,s:Math.floor(playSec)};
  try{player.pauseVideo()}catch(e){}
- const nb=count>best.c||(count===best.c&&count>0&&playSec<best.s);
+ const nb=!tampered&&(count>best.c||(count===best.c&&count>0&&playSec<best.s));
  if(nb){best={c:count,s:Math.floor(playSec)};ls.set('tequila_best2',best);}
- $('overText').innerHTML='テキーラ成功 <b style="font-size:30px;color:var(--accent)">'+count+'</b> 回<br>耐えた時間 <b>'+fmt(playSec)+'</b>'+(nb?'<br><b style="color:var(--ok)">自己ベスト！</b>':'')+'<br>さいこう記録：'+best.c+'回（'+fmt(best.s)+'）';
+ $('overText').innerHTML='テキーラ成功 <b style="font-size:30px;color:var(--accent)">'+count+'</b> 回<br>耐えた時間 <b>'+fmt(playSec)+'</b>'+(nb?'<br><b style="color:var(--ok)">自己ベスト！</b>':'')+(tampered?'<br><span style="color:#ff8a7a">時間をいじったので、ランキングには送れません</span>':'')+'<br>さいこう記録：'+best.c+'回（'+fmt(best.s)+'）';
  $('nameIn').value=ls.get('tequila_name','');
  dancer.state='fall';dancer.t=0;
  setTimeout(()=>show('over'),700);
@@ -418,6 +420,7 @@ $('sendBtn').onclick=async()=>{
  if(!name){m.textContent='なまえを入れてね';m.className='note err';return;}
  if(badName(name)){m.textContent='その名前は使えません';m.className='note err';return;}
  if(count<1){m.textContent='1回以上成功すると送れます';m.className='note err';return;}
+ if(tampered){m.textContent='時間をいじった回はランキングに送れません';m.className='note err';return;}
  if(sent)return;
  ls.set('tequila_name',name);m.textContent='送信中…';m.className='note';$('sendBtn').disabled=true;
  try{
@@ -450,6 +453,20 @@ function tick(){
  if(r!==lastRaw){lastRaw=r;lastRawAt=p;}
  const moving=playing&&p-lastRawAt<700; // 広告中や読み込み中は進んでいない
  const sinceSeek=p-lastSeekAt;
+ // 時間を勝手に動かされたら（巻き戻し・早送り・止めて動かす）元の位置に戻す
+ if(moving){
+  if(legitT<0){legitT=r;legitAt=p;}
+  const exp=legitT+Math.min(2,(p-legitAt)/1000);
+  // サビより前に飛んだときは広告などのこともあるので、いつもの「頭に戻す」にまかせる
+  if(sinceSeek<1500||Math.abs(r-exp)<=1.2||r<CFG.loopFrom-0.5){legitT=r;legitAt=p;}
+  else{
+   tampered=true;
+   try{player.seekTo(exp,true)}catch(e){}
+   lastSeekAt=p;est={t:exp,at:p};legitT=exp;legitAt=p;lastRaw=exp;
+   $('msg').textContent='時間はいじれません（この回はランキングに送れません）';
+   window.songState={moving:false};return;
+  }
+ }else legitAt=p;
  // ループ：サビの終わりを過ぎたら頭へ。外へ出ていたら戻す
  if(moving&&maskedCycle!==cycle&&r>=CFG.loopTo-EARLY-0.35&&r<CFG.loopTo){maskedCycle=cycle;seamHype();}
  if(sinceSeek>900&&(r>=CFG.loopTo-EARLY||r<CFG.loopFrom-1.5)){
