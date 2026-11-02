@@ -482,7 +482,7 @@ $('sendBtn').onclick=async()=>{
   const a=await fbAuth();
   if(!run.ok){m.textContent='始めたときに通信できなかったので、この回は送れません';m.className='note err';return;}
   await runBeat();
-  if(run.broken){m.textContent='途中で10分以上止まっていたので、この回は送れません';m.className='note err';return;}
+  if(run.broken){m.textContent='途中で1時間以上止まっていたので、この回は送れません';m.className='note err';return;}
   const cur=await fetchR(FB.databaseURL+'/'+RANK+'/'+a.uid+'.json').then(r=>r.ok?r.json():null).catch(()=>null);
   if(cur&&cur.c>=count){m.textContent='前に送った記録（'+cur.c+'回）の方が上なので、そのままです';m.className='note';sent=true;return;}
   let r=await fetchR(FB.databaseURL+'/'+RANK+'/'+a.uid+'.json?auth='+encodeURIComponent(a.token),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({n:name,c:count,s:Math.max(1,Math.floor(playSec)),t:{'.sv':'timestamp'}})});
