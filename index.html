@@ -262,7 +262,7 @@ let lastResult={c:0,s:0};
 
 function startGame(){
  ac();startCrowd();crowdTo(CROWD_BASE,.8);
- show(null);mode='play';count=0;combo=0;playSec=0;early=[];tampered=false;legitT=-1;
+ show(null);mode='play';count=0;combo=0;playSec=0;lastVid=-1;early=[];tampered=false;legitT=-1;
  hitDone=CFG.hits.map(()=>false);
  $('count').textContent='0';$('time').textContent='0:00';$('combo').textContent='';
  $('msg').textContent='サビが始まるのを待ってね';
@@ -473,9 +473,9 @@ async function openRank(me){
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 // ===== 毎回の見張り（タブを裏にしても止まらないよう setInterval でも回す） =====
-let lastTick=performance.now();
+let lastTick=performance.now(),lastVid=-1;
 function tick(){
- const p=performance.now(),dt=Math.min(1,(p-lastTick)/1000);lastTick=p;
+ const p=performance.now(),realDt=(p-lastTick)/1000,dt=Math.min(1,realDt);lastTick=p;
  if(mode!=='play'||!ready){window.songState={moving:false};return;}
  const r=raw();
  if(r!==lastRaw){lastRaw=r;lastRawAt=p;}
@@ -508,7 +508,11 @@ function tick(){
  const inLoop=r>=CFG.loopFrom-0.3&&r<CFG.loopTo+0.3;
  window.songState={t:now(),moving:moving&&inLoop,at:p};
  if(moving&&inLoop){
-  playSec+=dt;$('time').textContent=fmt(playSec);
+  // 時間は「実際に進んだ曲の長さ」で数える（タブを裏にして見張りが遅れても正しく数える）
+  const adv=lastVid>=0?r-lastVid:0;
+  if(adv>0&&adv<=realDt+0.5)playSec+=adv;else if(adv>=0&&lastVid>=0)playSec+=Math.min(dt,Math.max(0,adv));
+  lastVid=r;
+  $('time').textContent=fmt(playSec);
   if($('msg').textContent==='サビが始まるのを待ってね')$('msg').textContent='';
   // 押しそびれたら連続が切れる（ゲームは続く）
   const t=now();
