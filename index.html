@@ -492,6 +492,7 @@ $('sendBtn').onclick=async()=>{
    const rr=await fetchR(FB.databaseURL+'/'+RUNS+'/'+a.uid+'.json?auth='+encodeURIComponent(a.token));const sv=rr.ok?await rr.json():null;
    if(sv&&sv.c>=1&&(!cur||sv.c>cur.c)){r=await fetchR(FB.databaseURL+'/'+RANK+'/'+a.uid+'.json?auth='+encodeURIComponent(a.token),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({n:name,c:Math.min(count,sv.c),s:Math.max(1,Math.min(Math.floor(playSec),sv.s)),t:{'.sv':'timestamp'}})});if(r.ok&&sv.c<count)note='（通信が切れていた分をのぞいて'+sv.c+'回で）';}
   }
+  if(r.status===401||r.status===403){m.textContent='記録を確かめられませんでした。ページを読み込み直してから遊んでね';m.className='note err';return;}
   if(!r.ok)throw new Error('put '+r.status);
   sent=true;ls.set('tq_pending',null);m.textContent='ランキングに載りました'+note;m.className='note ok';openRank(a.uid);
  }catch(e){const why=String(e&&e.message||e).slice(0,40);
