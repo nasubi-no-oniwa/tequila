@@ -527,12 +527,13 @@ function tick(){
   if(legitT<0){legitT=r;legitAt=p;}
   const exp=legitT+Math.min(2,(p-legitAt)/1000);
   // サビより前に飛んだときは広告などのこともあるので、いつもの「頭に戻す」にまかせる
-  if(sinceSeek<1500||Math.abs(r-exp)<=1.2||r<CFG.loopFrom-0.5){legitT=r;legitAt=p;}
+  // 巻き戻り（イヤホンを外して止まったあと等に端末が少し戻すことがある）は得をしないのでそのまま続ける
+  if(sinceSeek<1500||r-exp<=1.2||r<CFG.loopFrom-0.5){legitT=r;legitAt=p;}
   else{
-   tampered=true;
+   // 先へ飛ばされたら元の位置に戻すだけ（記録は送れる。回数と時間の上限はサーバーが見ている）
    try{player.seekTo(exp,true)}catch(e){}
    lastSeekAt=p;est={t:exp,at:p};legitT=exp;legitAt=p;lastRaw=exp;
-   $('msg').textContent='時間はいじれません（この回はランキングに送れません）';
+   $('msg').textContent='時間は先に進められません（元に戻しました）';
    window.songState={moving:false};return;
   }
  }else legitAt=p;
