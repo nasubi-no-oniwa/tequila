@@ -183,6 +183,13 @@ if(document.body)go();else document.addEventListener('DOMContentLoaded',go);
 
 <script>
 // ===== 設定 =====
+
+// Xの投稿で引用するツイート（なすびのお庭の管理ページ quote/ で日本語・英語を貼りかえられる）
+var NQ=window.__nq||(window.__nq={q:{}});if(!NQ.f){NQ.f=1;fetch('https://ft-red-default-rtdb.asia-southeast1.firebasedatabase.app/xquote/g/tequila.json').then(r=>r.json()).then(d=>{if(d&&typeof d==='object')NQ.q=d;}).catch(()=>{});}
+function quoteURL(){let l='';try{if(typeof lang==='string')l=lang;}catch(e){}if(!l)l=document.documentElement.lang||'ja';const u=(l.slice(0,2)==='ja'?NQ.q.ja:NQ.q.en)||'';return /^https:\/\/x\.com\/[A-Za-z0-9_]{1,15}\/status\/\d{5,25}$/.test(u)?u:'';}
+function xIntent(text,url){const q=quoteURL();return 'https://x.com/intent/post?text='+encodeURIComponent(q?text+'\n'+url:text)+'&url='+encodeURIComponent(q||url);}
+function xIntentT(text){const q=quoteURL();return 'https://x.com/intent/post?text='+encodeURIComponent(text)+(q?'&url='+encodeURIComponent(q):'');}
+function nqS(o){const q=quoteURL();if(!q||!o)return o;o=Object.assign({},o);o.text=(o.text||'')+(o.url?'\n'+o.url:'')+'\n'+q;delete o.url;return o;}
 const VIDEO_ID='4hswHOEQfj8';
 const WINDOW=0.5; // 前後0.5秒（合計1秒）
 // 「テキーラ！」の秒数（全員共通）
@@ -307,7 +314,7 @@ $('quit').onclick=endGame;
 const GAME_URL='https://nasubi-no-oniwa.github.io/tequila/';
 $('xBtn').onclick=()=>{
  const txt='「テキーラ！」'+lastResult.c+'回\n耐えた時間 '+fmt(lastResult.s)+'\n\n#ドパゲー #ドパがきにはできないゲーム #ブラウザゲーム';
- const u='https://x.com/intent/post?text='+encodeURIComponent(txt)+'&url='+encodeURIComponent(GAME_URL);
+ const u=xIntent(txt,GAME_URL);
  const w=window.open(u,'_blank');if(!w)location.href=u;
 };
 let lastResult={c:0,s:0};
