@@ -306,7 +306,7 @@ $('rankBack').onclick=()=>{if(mode==='over')show('over');else showTitle();};
 $('quit').onclick=endGame;
 const GAME_URL='https://nasubi-no-oniwa.github.io/tequila/';
 $('xBtn').onclick=()=>{
- const txt='「テキーラ！」'+lastResult.c+'回\n耐えた時間 '+fmt(lastResult.s)+'\n\n#ドパゲー #ドパがきにはできないゲーム';
+ const txt='「テキーラ！」'+lastResult.c+'回\n耐えた時間 '+fmt(lastResult.s)+'\n\n#ドパゲー #ドパがきにはできないゲーム #ブラウザゲーム';
  const u='https://x.com/intent/post?text='+encodeURIComponent(txt)+'&url='+encodeURIComponent(GAME_URL);
  const w=window.open(u,'_blank');if(!w)location.href=u;
 };
